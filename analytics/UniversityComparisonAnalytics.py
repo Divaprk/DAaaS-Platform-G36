@@ -87,7 +87,7 @@ def load_data(
 
 
 # ============================================================================
-# VISUALIZATION 1: EMPLOYMENT RATES (LINE CHART)
+# VISUALIZATION 1: EMPLOYMENT RATES
 # ============================================================================
 
 def plot_employment_rates(
@@ -180,7 +180,7 @@ def plot_employment_rates(
 
 
 # ============================================================================
-# VISUALIZATION 2: SALARY COMPARISON (LINE CHART)
+# VISUALIZATION 2: SALARY COMPARISON
 # ============================================================================
 
 def plot_salary_comparison(
@@ -265,7 +265,7 @@ def plot_salary_comparison(
 
 
 # ============================================================================
-# VISUALIZATION 3: SALARY BY CATEGORY (GROUPED BAR CHART)
+# VISUALIZATION 3: SALARY BY CATEGORY
 # ============================================================================
 
 def plot_salary_by_category(
@@ -392,7 +392,7 @@ def plot_salary_by_category(
 
 
 # ============================================================================
-# VISUALIZATION 4: SALARY GROWTH (HORIZONTAL BAR CHART)
+# VISUALIZATION 4: SALARY GROWTH 
 # ============================================================================
 
 def plot_salary_growth(
