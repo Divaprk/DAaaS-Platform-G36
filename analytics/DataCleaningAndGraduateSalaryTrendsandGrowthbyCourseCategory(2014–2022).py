@@ -17,9 +17,9 @@ IntakeEnrolmentandGraduatesofUniversitiesbyCourse.csv (ieg)
 
 import pandas as pd
 
-ges = pd.read_csv("/content/GraduateEmploymentSurveyNTUNUSSITSMUSUSSSUTD.csv")
+ges = pd.read_csv("../data/GraduateEmploymentSurveyNTUNUSSITSMUSUSSSUTD.csv")
 
-ieg = pd.read_csv("/content/IntakeEnrolmentandGraduatesofUniversitiesbyCourse.csv")
+ieg = pd.read_csv("../data/IntakeEnrolmentandGraduatesofUniversitiesbyCourse.csv")
 
 """Taking note of the data types and seeing which ones need conversion"""
 
@@ -85,7 +85,6 @@ ieg["course"].unique()
 
 """Firstly, we need to properly format the course names in ges as much as possible to standardize them via regex"""
 
-from numpy._core.defchararray import count
 ges["course"] = ges["course"].str.lower()
 
 ges["course"] = ges["course"].str.replace(
