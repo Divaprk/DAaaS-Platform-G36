@@ -1,27 +1,16 @@
-# DAaaS Dashboard
+# React + Vite
 
-A premium, sleek **Data Analytics as a Service** platform for exploring graduate employment trends from Singapore universities (2013-2023).
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-This project features a modern monochrome "Pure Black" design system, ensuring data is the focus with high readability and a professional aesthetic.
+Currently, two official plugins are available:
 
-## � Quick Start (For Anyone)
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-Follow these simple steps to get the dashboard running on your computer.
+## React Compiler
 
-### Prerequisites
-- **Node.js**: You need to have Node.js installed. [Download it here](https://nodejs.org/) if you don't have it.
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-### Step 1: Install Dependencies
-Open your terminal (Command Prompt or PowerShell) in the project folder and run:
-```bash
-npm install
-```
-*This downloads all the necessary libraries.*
+## Expanding the ESLint configuration
 
-### Step 2: Run the App
-Start the local development server:
-```bash
-npm run dev
-```
-*You will see a link, usually `http://localhost:3000`. Click it to open the app!*
-
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.

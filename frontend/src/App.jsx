@@ -1,121 +1,216 @@
-import { useState, useEffect } from 'react';
-import HeroSection from './components/HeroSection';
-import SearchFilter from './components/SearchFilter';
-import DataTable from './components/DataTable';
-import AnalysisPanel from './components/AnalysisPanel';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  LineChart, Line, BarChart, Bar, ScatterChart, Scatter, 
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
+} from 'recharts';
+import { Search, TrendingUp, BarChart3, Users, Loader2, DollarSign, Award, Percent, X, ChevronRight, ChevronDown, School, BookOpen } from 'lucide-react';
 
-// We keep these for mapping/filtering, but remove parseCSVData
-import { filterByCourses } from './utils/mockData';
-import { getUniqueCourses } from './utils/categoryMapping';
+const API_URL = "https://uihec8ny2d.execute-api.us-east-1.amazonaws.com/analytics";
 
-function App() {
-    const [allData, setAllData] = useState([]);
-    const [displayData, setDisplayData] = useState([]);
-    const [allCourses, setAllCourses] = useState([]);
-    const [selectedCourses, setSelectedCourses] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+export default function App() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCourses, setSelectedCourses] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTool, setActiveTool] = useState('growth');
+  const [expandedUnis, setExpandedUnis] = useState({});
+  const [expandedCats, setExpandedCats] = useState({});
 
-    // --- YOUR AWS API ENDPOINT ---
-    // Make sure it ends with /analytics
-    const AWS_API_URL = "https://uihec8ny2d.execute-api.us-east-1.amazonaws.com/analytics";
+  useEffect(() => {
+    fetch(API_URL).then(res => res.json()).then(json => {
+      setData(json);
+      setLoading(false);
+    }).catch(err => console.error(err));
+  }, []);
 
-    // Load Live Data from AWS on mount
-    useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const response = await fetch(AWS_API_URL);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+  const groupedData = useMemo(() => {
+    const groups = {};
+    data.forEach(item => {
+      const { university, course_category, course } = item;
+      if (!groups[university]) groups[university] = {};
+      if (!groups[university][course_category]) groups[university][course_category] = new Set();
+      groups[university][course_category].add(course);
+    });
+    return groups;
+  }, [data]);
 
-                const result = await response.json();
-                
-                // Note: Your Lambda returns 'salary_trends' as the main list
-                const data = result.salary_trends;
-                
-                setAllData(data);
-                setDisplayData(data);
-                setAllCourses(getUniqueCourses(data));
-            } catch (err) {
-                console.error("Failed to fetch data:", err);
-                setError("Failed to connect to AWS Backend. Check CORS settings.");
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadData();
-    }, []);
+  const chartData = data.filter(d => selectedCourses.includes(d.course));
 
-    // Update display data when search/filters are used
-    useEffect(() => {
-        if (selectedCourses.length > 0) {
-            const filtered = filterByCourses(allData, selectedCourses);
-            setDisplayData(filtered);
-        } else {
-            setDisplayData(allData);
-        }
-    }, [selectedCourses, allData]);
+  const avgSalary = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.gross_monthly_median, 0) / chartData.length).toFixed(0) : 0;
+  const maxSalary = chartData.length > 0 ? Math.max(...chartData.map(d => d.gross_monthly_median)) : 0;
+  const avgEmp = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.employment_rate_overall, 0) / chartData.length).toFixed(1) : 0;
 
-    const handleCategorySelect = (presetCourses) => {
-        setSelectedCourses(presetCourses);
-    };
+  const toggleUni = (uni) => setExpandedUnis(prev => ({ ...prev, [uni]: !prev[uni] }));
+  const toggleCat = (cat) => setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin h-16 w-16 border-t-2 border-b-2 border-accent-cyan mx-auto mb-4"></div>
-                    <p className="text-slate-300 text-lg">Fetching live AWS data...</p>
-                </div>
+  if (loading) return (
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white">
+      <Loader2 className="animate-spin mb-4 text-cyan-400" size={40} />
+      <div className="tracking-widest animate-pulse text-xs font-mono">RESTORING_ANALYTICS_PIPELINE...</div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-200 p-8 font-sans">
+      <header className="max-w-7xl mx-auto mb-10">
+        <h1 className="text-5xl font-black text-white tracking-tighter italic">DAaaS_G36</h1>
+        <p className="text-zinc-500 font-mono text-xs uppercase tracking-[0.3em] mt-2">Unified Analytics Platform</p>
+      </header>
+
+      <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+        
+        {/* Sidebar */}
+        <div className="lg:col-span-1 space-y-4">
+          <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 shadow-2xl sticky top-8 max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Registry</span>
+              <span className="text-[10px] font-mono text-cyan-500">{selectedCourses.length} ACTIVE</span>
             </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
-                <div className="glass p-8 rounded-2xl border border-red-900/50 text-center">
-                    <p className="text-red-400 text-lg mb-2">Backend Error</p>
-                    <p className="text-slate-400">{error}</p>
-                </div>
+            
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-zinc-950 rounded-lg border border-zinc-800">
+              <Search size={14} className="text-zinc-600" />
+              <input 
+                className="bg-transparent border-none outline-none text-xs w-full text-white"
+                placeholder="Search..."
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-        );
-    }
 
-    return (
-        <div className="min-h-screen">
-            <HeroSection />
-
-            <SearchFilter
-                allCourses={allCourses}
-                selectedCourses={selectedCourses}
-                setSelectedCourses={setSelectedCourses}
-                onCategorySelect={handleCategorySelect}
-            />
-
-            <AnalysisPanel
-                data={allData}
-                selectedCourses={selectedCourses}
-            />
-
-            <DataTable data={displayData} />
-
-            <footer className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-20">
-                <div className="glass rounded-2xl p-8 text-center">
-                    <p className="text-slate-400">
-                        DAaaS Platform © 2026 | Graduate Employment Trends Analytics
-                    </p>
-                    <p className="text-slate-500 text-sm mt-2">
-                        Connected to: {AWS_API_URL}
-                    </p>
+            <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar space-y-2">
+              {Object.keys(groupedData).map(uni => (
+                <div key={uni} className="space-y-1">
+                  <button onClick={() => toggleUni(uni)} className="w-full flex items-center justify-between p-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-[10px] font-bold text-zinc-300 uppercase">
+                    <span className="flex items-center gap-2"><School size={12} className="text-cyan-500"/>{uni}</span>
+                    {expandedUnis[uni] ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+                  </button>
+                  {expandedUnis[uni] && (
+                    <div className="ml-4 space-y-1 border-l border-zinc-800 pl-2">
+                      {Object.keys(groupedData[uni]).map(cat => (
+                        <div key={cat}>
+                          <button onClick={() => toggleCat(uni+cat)} className="w-full flex items-center justify-between p-1.5 text-[9px] font-bold text-zinc-500 uppercase">
+                            <span className="flex items-center gap-2"><BookOpen size={10}/>{cat}</span>
+                          </button>
+                          <div className="ml-4 flex flex-col gap-1 py-1">
+                            {[...groupedData[uni][cat]].map(course => (
+                              <button
+                                key={course}
+                                onClick={() => selectedCourses.includes(course) 
+                                  ? setSelectedCourses(selectedCourses.filter(c => c !== course))
+                                  : setSelectedCourses([...selectedCourses, course])
+                                }
+                                className={`text-left px-2 py-1.5 rounded text-[9px] ${selectedCourses.includes(course) ? 'bg-cyan-500 text-black font-bold' : 'text-zinc-600 hover:text-zinc-300'}`}
+                              >
+                                {course}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-            </footer>
+              ))}
+            </div>
+          </div>
         </div>
-    );
+
+        {/* Analytics Area */}
+        <div className="lg:col-span-3 space-y-6">
+          <div className="flex flex-wrap gap-2 min-h-[32px] items-center">
+            {selectedCourses.map(course => (
+              <span key={course} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-zinc-900 border border-zinc-700 rounded-full text-[10px] font-bold text-zinc-300 uppercase">
+                {course}
+                <button onClick={() => setSelectedCourses(selectedCourses.filter(c => c !== course))} className="hover:bg-rose-500 hover:text-white p-1 rounded-full"><X size={12}/></button>
+              </span>
+            ))}
+            {selectedCourses.length > 0 && <button onClick={() => setSelectedCourses([])} className="text-[10px] text-zinc-600 hover:text-rose-400 font-bold uppercase ml-2">Reset</button>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatCard icon={<DollarSign className="text-cyan-400" size={20}/>} label="Avg Salary" value={`$${avgSalary}`} />
+            <StatCard icon={<Award className="text-purple-400" size={20}/>} label="Peak Salary" value={`$${maxSalary}`} />
+            <StatCard icon={<Percent className="text-rose-400" size={20}/>} label="Avg Employment" value={`${avgEmp}%`} />
+          </div>
+
+          <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl w-fit border border-zinc-800">
+            {['growth', 'performance', 'tradeoff'].map(tool => (
+              <button key={tool} onClick={() => setActiveTool(tool)} className={`px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${activeTool === tool ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-600 hover:text-zinc-300'}`}>{tool}</button>
+            ))}
+          </div>
+
+          <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-8 min-h-[500px]">
+             {selectedCourses.length > 0 ? (
+               <div className="h-[450px] w-full">
+                  {/* GROWTH CHART */}
+                  {activeTool === 'growth' && (
+                    <ResponsiveContainer>
+                      <LineChart data={formatGrowthData(chartData)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
+                        <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
+                        <Tooltip contentStyle={{backgroundColor: '#09090b', border: '1px solid #27272a'}} />
+                        <Legend />
+                        {selectedCourses.map((c, i) => (
+                          <Line key={c} type="monotone" dataKey={c} stroke={['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5]} strokeWidth={4} dot={{r: 4}} />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+
+                  {/* PERFORMANCE CHART (FIXED) */}
+                  {activeTool === 'performance' && (
+                    <ResponsiveContainer>
+                      <BarChart data={chartData} layout="vertical" margin={{ left: 30 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
+                        <XAxis type="number" stroke="#71717a" fontSize={10} />
+                        <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={100} />
+                        <Tooltip contentStyle={{backgroundColor: '#09090b', border: '1px solid #27272a'}} />
+                        <Bar dataKey="z_score" radius={[0, 4, 4, 0]}>
+                          {chartData.map((entry, index) => (
+                            <Cell key={index} fill={entry.z_score > 0 ? '#22d3ee' : '#fb7185'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+
+                  {/* TRADEOFF CHART (FIXED) */}
+                  {activeTool === 'tradeoff' && (
+                    <ResponsiveContainer>
+                      <ScatterChart>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                        <XAxis type="number" dataKey="employment_rate_overall" name="Employment" unit="%" stroke="#71717a" domain={[70, 100]} fontSize={10} />
+                        <YAxis type="number" dataKey="gross_monthly_median" name="Salary" unit="$" stroke="#71717a" fontSize={10} />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{backgroundColor: '#09090b', border: '1px solid #27272a'}} />
+                        <Scatter name="Degrees" data={chartData} fill="#22d3ee" />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  )}
+               </div>
+             ) : (
+                <div className="h-[400px] flex flex-col items-center justify-center text-zinc-700 font-mono text-[10px] tracking-widest uppercase">Select Courses to Analyze</div>
+             )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
-export default App;
+function StatCard({ icon, label, value }) {
+  return (
+    <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+      <div className="flex items-center gap-3 mb-3">{icon}<span className="text-[9px] uppercase font-black tracking-widest text-zinc-600">{label}</span></div>
+      <div className="text-3xl font-black text-white tracking-tighter">{value}</div>
+    </div>
+  );
+}
+
+function formatGrowthData(data) {
+  const years = [...new Set(data.map(d => d.year))].sort();
+  return years.map(yr => {
+    const obj = { year: yr };
+    data.filter(d => d.year === yr).forEach(d => { obj[d.course] = d.gross_monthly_median; });
+    return obj;
+  });
+}
