@@ -3,15 +3,15 @@ import {
   LineChart, Line, BarChart, Bar, ScatterChart, Scatter, 
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
 } from 'recharts';
-import { Search, TrendingUp, BarChart3, Users, Loader2, DollarSign, Award, Percent, X, ChevronRight, ChevronDown, School, BookOpen } from 'lucide-react';
+import { Search, TrendingUp, Loader2, DollarSign, Award, Percent, X, ChevronRight, ChevronDown, School, BookOpen } from 'lucide-react';
 
 const API_URL = "https://uihec8ny2d.execute-api.us-east-1.amazonaws.com/analytics";
 
 export default function App() {
   const [data, setData] = useState([]);
-  const [summary, setSummary] = useState(null); // Added summary state
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCourses, setSelectedCourses] = useState([]);
+  const [selectedCourses, setSelectedCourses] = useState([]); // Stores "Uni - Course"
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTool, setActiveTool] = useState('growth');
   const [expandedUnis, setExpandedUnis] = useState({});
@@ -21,7 +21,6 @@ export default function App() {
     fetch(API_URL)
       .then(res => res.json())
       .then(json => {
-        // Correctly mapping the new backend structure
         setData(json.records); 
         setSummary(json.summary); 
         setLoading(false);
@@ -33,22 +32,26 @@ export default function App() {
   }, []);
 
   const groupedData = useMemo(() => {
-      const groups = {};
-      // ADD THIS GUARD: If data is undefined or not an array, return empty groups
-      if (!data || !Array.isArray(data)) return groups;
+    const groups = {};
+    if (!data || !Array.isArray(data)) return groups;
+    data.forEach(item => {
+      const { university, course_category, course } = item;
+      if (!university || !course_category) return;
+      if (!groups[university]) groups[university] = {};
+      if (!groups[university][course_category]) groups[university][course_category] = new Set();
+      groups[university][course_category].add(course);
+    });
+    return groups;
+  }, [data]);
 
-      data.forEach(item => {
-        const { university, course_category, course } = item;
-        if (!university || !course_category) return; // Skip invalid rows
-        
-        if (!groups[university]) groups[university] = {};
-        if (!groups[university][course_category]) groups[university][course_category] = new Set();
-        groups[university][course_category].add(course);
-      });
-      return groups;
-    }, [data]);
+  // FIX: Filter data using the composite key (Uni - Course)
+  const chartData = data.filter(d => 
+    selectedCourses.includes(`${d.university} - ${d.course}`)
+  );
 
-  const chartData = data.filter(d => selectedCourses.includes(d.course));
+  // Selection Stats (Calculated for current selection)
+  const selAvgSalary = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.gross_monthly_median, 0) / chartData.length).toFixed(0) : 0;
+  const selAvgEmp = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.employment_rate_overall, 0) / chartData.length).toFixed(1) : 0;
 
   const toggleUni = (uni) => setExpandedUnis(prev => ({ ...prev, [uni]: !prev[uni] }));
   const toggleCat = (cat) => setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -56,7 +59,7 @@ export default function App() {
   if (loading) return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white">
       <Loader2 className="animate-spin mb-4 text-cyan-400" size={40} />
-      <div className="tracking-widest animate-pulse text-xs font-mono">RESTORING_ANALYTICS_PIPELINE...</div>
+      <div className="tracking-widest animate-pulse text-xs font-mono uppercase">Restoring_Analytics_Pipeline...</div>
     </div>
   );
 
@@ -77,15 +80,6 @@ export default function App() {
               <span className="text-[10px] font-mono text-cyan-500">{selectedCourses.length} ACTIVE</span>
             </div>
             
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-zinc-950 rounded-lg border border-zinc-800">
-              <Search size={14} className="text-zinc-600" />
-              <input 
-                className="bg-transparent border-none outline-none text-xs w-full text-white"
-                placeholder="Search..."
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
             <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar space-y-2">
               {Object.keys(groupedData).map(uni => (
                 <div key={uni} className="space-y-1">
@@ -101,18 +95,25 @@ export default function App() {
                             <span className="flex items-center gap-2"><BookOpen size={10}/>{cat}</span>
                           </button>
                           <div className="ml-4 flex flex-col gap-1 py-1">
-                            {[...groupedData[uni][cat]].map(course => (
-                              <button
-                                key={course}
-                                onClick={() => selectedCourses.includes(course) 
-                                  ? setSelectedCourses(selectedCourses.filter(c => c !== course))
-                                  : setSelectedCourses([...selectedCourses, course])
-                                }
-                                className={`text-left px-2 py-1.5 rounded text-[9px] ${selectedCourses.includes(course) ? 'bg-cyan-500 text-black font-bold' : 'text-zinc-600 hover:text-zinc-300'}`}
-                              >
-                                {course}
-                              </button>
-                            ))}
+                            {[...groupedData[uni][cat]].map(course => {
+                               const compositeId = `${uni} - ${course}`;
+                               return (
+                                <button
+                                  key={course}
+                                  onClick={() => selectedCourses.includes(compositeId) 
+                                    ? setSelectedCourses(selectedCourses.filter(c => c !== compositeId))
+                                    : setSelectedCourses([...selectedCourses, compositeId])
+                                  }
+                                  className={`text-left px-2 py-1.5 rounded text-[9px] transition-all ${
+                                    selectedCourses.includes(compositeId) 
+                                      ? 'bg-cyan-500 text-black font-bold' 
+                                      : 'text-zinc-600 hover:text-zinc-300'
+                                  }`}
+                                >
+                                  {course}
+                                </button>
+                               );
+                            })}
                           </div>
                         </div>
                       ))}
@@ -127,7 +128,7 @@ export default function App() {
         {/* Analytics Area */}
         <div className="lg:col-span-3 space-y-6">
           
-          {/* MOVED: TOP SUMMARY CARDS (Inside the return statement now) */}
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard 
               icon={<DollarSign className="text-cyan-400" size={20}/>} 
@@ -147,6 +148,19 @@ export default function App() {
               value={summary ? summary.top_degree : "..."} 
               subtext="Peak Job Security"
             />
+          </div>
+
+          {/* Current Selection Stats */}
+          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex justify-around items-center text-center">
+             <div className="space-y-1">
+               <p className="text-[8px] uppercase tracking-widest text-zinc-500">Selected Avg Salary</p>
+               <p className="text-xl font-bold text-white">${selAvgSalary}</p>
+             </div>
+             <div className="w-px h-8 bg-zinc-800" />
+             <div className="space-y-1">
+               <p className="text-[8px] uppercase tracking-widest text-zinc-500">Selected Avg Emp %</p>
+               <p className="text-xl font-bold text-white">{selAvgEmp}%</p>
+             </div>
           </div>
 
           <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl w-fit border border-zinc-800">
@@ -178,7 +192,7 @@ export default function App() {
                       <BarChart data={chartData} layout="vertical" margin={{ left: 30 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
                         <XAxis type="number" stroke="#71717a" fontSize={10} />
-                        <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={100} />
+                        <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={120} tickFormatter={(value, index) => `${chartData[index]?.university.split(' ')[0]} - ${value}`} />
                         <Tooltip contentStyle={{backgroundColor: '#09090b', border: '1px solid #27272a'}} />
                         <Bar dataKey="z_score" radius={[0, 4, 4, 0]}>
                           {chartData.map((entry, index) => (
@@ -211,7 +225,6 @@ export default function App() {
   );
 }
 
-// Sub-component defined outside the main app
 function StatCard({ icon, label, value, subtext }) {
   return (
     <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 shadow-lg flex flex-col">
@@ -219,22 +232,21 @@ function StatCard({ icon, label, value, subtext }) {
         {icon}
         <span className="text-[9px] uppercase font-black tracking-widest text-zinc-600">{label}</span>
       </div>
-      <div className="text-2xl font-black text-white tracking-tighter truncate" title={value}>
-        {value}
-      </div>
-      <div className="text-[8px] uppercase text-zinc-700 font-bold mt-1 tracking-wider">
-        {subtext}
-      </div>
+      <div className="text-2xl font-black text-white tracking-tighter truncate" title={value}>{value}</div>
+      <div className="text-[8px] uppercase text-zinc-700 font-bold mt-1 tracking-wider">{subtext}</div>
     </div>
   );
 }
 
-// Data helper function
+// FIX: formatGrowthData must use the composite key (Uni - Course) for line chart mapping
 function formatGrowthData(data) {
   const years = [...new Set(data.map(d => d.year))].sort();
   return years.map(yr => {
     const obj = { year: yr };
-    data.filter(d => d.year === yr).forEach(d => { obj[d.course] = d.gross_monthly_median; });
+    data.filter(d => d.year === yr).forEach(d => { 
+      const compositeId = `${d.university} - ${d.course}`;
+      obj[compositeId] = d.gross_monthly_median; 
+    });
     return obj;
   });
 }
