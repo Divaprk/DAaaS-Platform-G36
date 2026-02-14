@@ -17,6 +17,9 @@ export default function App() {
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
 
+  // RESTORED: Salary Metric State
+  const [salaryMetric, setSalaryMetric] = useState('gross_monthly_median');
+
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTool, setActiveTool] = useState('growth');
   const [expandedUnis, setExpandedUnis] = useState({});
@@ -56,7 +59,7 @@ export default function App() {
     return [...new Set(data.map(d => d.course_category))].sort();
   }, [data]);
 
-  // 3. Dynamic Chart Data (Handles both Courses and Categories)
+  // 3. Dynamic Chart Data (RESTORED: dynamically uses salaryMetric)
   const chartData = useMemo(() => {
     if (viewMode === 'courses') {
       return data.filter(d => selectedCourses.includes(`${d.university} - ${d.course}`));
@@ -64,7 +67,6 @@ export default function App() {
       if (!selectedCategories.length) return [];
       const aggregated = [];
 
-      // Frontend Aggregation (Map-Reduce)
       selectedCategories.forEach(cat => {
         const catData = data.filter(d => d.course_category === cat);
         const years = [...new Set(catData.map(d => d.year))];
@@ -74,10 +76,11 @@ export default function App() {
           if (yearData.length > 0) {
             aggregated.push({
               year: year,
-              course: cat, // We map category to 'course' so the charts don't break
+              course: cat, 
               university: 'Industry Average',
               course_category: cat,
-              gross_monthly_median: yearData.reduce((acc, curr) => acc + curr.gross_monthly_median, 0) / yearData.length,
+              // Mapped dynamically based on dropdown
+              [salaryMetric]: yearData.reduce((acc, curr) => acc + (curr[salaryMetric] || 0), 0) / yearData.length,
               employment_rate_overall: yearData.reduce((acc, curr) => acc + curr.employment_rate_overall, 0) / yearData.length,
               z_score: yearData.reduce((acc, curr) => acc + curr.z_score, 0) / yearData.length
             });
@@ -86,23 +89,19 @@ export default function App() {
       });
       return aggregated;
     }
-  }, [data, viewMode, selectedCourses, selectedCategories]);
+  }, [data, viewMode, selectedCourses, selectedCategories, salaryMetric]); // Added salaryMetric dependency
 
-  // Tradeoff view should show one point per selected course/category (not every year row).
+  // TEAMMATE'S CODE: Tradeoff view aggregation
   const tradeoffData = useMemo(() => {
     if (!chartData.length) return [];
 
     const grouped = chartData.reduce((acc, row) => {
       const key = viewMode === 'courses' ? `${row.university} - ${row.course}` : row.course_category;
       if (!acc[key]) {
-        acc[key] = {
-          label: key,
-          totalSalary: 0,
-          totalEmployment: 0,
-          count: 0
-        };
+        acc[key] = { label: key, totalSalary: 0, totalEmployment: 0, count: 0 };
       }
-      acc[key].totalSalary += Number(row.gross_monthly_median || 0);
+      // ADAPTED: Uses the dynamic salaryMetric instead of hardcoded gross_monthly_median
+      acc[key].totalSalary += Number(row[salaryMetric] || 0); 
       acc[key].totalEmployment += Number(row.employment_rate_overall || 0);
       acc[key].count += 1;
       return acc;
@@ -130,8 +129,9 @@ export default function App() {
         quadrant: `${salaryLevel} Salary / ${employmentLevel} Employment`
       };
     });
-  }, [chartData, viewMode]);
+  }, [chartData, viewMode, salaryMetric]);
 
+  // TEAMMATE'S CODE: Auto-scaling Tradeoff Domains
   const tradeoffDomains = useMemo(() => {
     if (!tradeoffData.length) return { x: [70, 100], y: [0, 7000] };
     const xVals = tradeoffData.map(d => d.avg_employment);
@@ -148,6 +148,7 @@ export default function App() {
     };
   }, [tradeoffData]);
 
+  // TEAMMATE'S CODE: Trendline Math
   const tradeoffTrend = useMemo(() => {
     if (tradeoffData.length < 2) return null;
     const x = tradeoffData.map(d => d.avg_employment);
@@ -169,19 +170,19 @@ export default function App() {
     ];
   }, [tradeoffData]);
 
+  // TEAMMATE'S CODE: Quadrant Colors
   const quadrantColors = {
-    'High Salary / High Employment': '#34d399',
-    'High Salary / Low Employment': '#fb923c',
-    'Low Salary / High Employment': '#93c5fd',
-    'Low Salary / Low Employment': '#f472b6'
+    'High Salary / High Employment': '#34d399', // Emerald
+    'High Salary / Low Employment': '#fb923c',  // Orange
+    'Low Salary / High Employment': '#93c5fd',  // Blue
+    'Low Salary / Low Employment': '#f472b6'    // Pink
   };
 
-  // Shared state references for active view
   const activeSelections = viewMode === 'courses' ? selectedCourses : selectedCategories;
   const setActiveSelections = viewMode === 'courses' ? setSelectedCourses : setSelectedCategories;
 
-  // Selection Stats
-  const selAvgSalary = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.gross_monthly_median, 0) / chartData.length).toFixed(0) : 0;
+  // RESTORED: Dynamic Selected Stats
+  const selAvgSalary = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + (curr[salaryMetric] || 0), 0) / chartData.length).toFixed(0) : 0;
   const selAvgEmp = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.employment_rate_overall, 0) / chartData.length).toFixed(1) : 0;
 
   const toggleUni = (uni) => setExpandedUnis(prev => ({ ...prev, [uni]: !prev[uni] }));
@@ -232,50 +233,74 @@ export default function App() {
               <input
                 className="bg-transparent border-none outline-none text-xs w-full text-white"
                 placeholder="Search..."
+                value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
             <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar space-y-2">
 
-              {/* RENDER COURSE VIEW */}
-              {viewMode === 'courses' && Object.keys(groupedData).map(uni => (
-                <div key={uni} className="space-y-1">
-                  <button onClick={() => toggleUni(uni)} className="w-full flex items-center justify-between p-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-[10px] font-bold text-zinc-300 uppercase">
-                    <span className="flex items-center gap-2"><School size={12} className="text-cyan-500" />{uni}</span>
-                    {expandedUnis[uni] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                  {expandedUnis[uni] && (
-                    <div className="ml-4 space-y-1 border-l border-zinc-800 pl-2">
-                      {Object.keys(groupedData[uni]).map(cat => (
-                        <div key={cat}>
-                          <button onClick={() => toggleCat(uni + cat)} className="w-full flex items-center justify-between p-1.5 text-[9px] font-bold text-zinc-500 uppercase">
-                            <span className="flex items-center gap-2"><BookOpen size={10} />{cat}</span>
-                          </button>
-                          <div className="ml-4 flex flex-col gap-1 py-1">
-                            {[...groupedData[uni][cat]].filter(c => c.toLowerCase().includes(searchTerm.toLowerCase())).map(course => {
-                              const compositeId = `${uni} - ${course}`;
-                              return (
-                                <button
-                                  key={course}
-                                  onClick={() => selectedCourses.includes(compositeId)
-                                    ? setSelectedCourses(selectedCourses.filter(c => c !== compositeId))
-                                    : setSelectedCourses([...selectedCourses, compositeId])
-                                  }
-                                  className={`text-left px-2 py-1.5 rounded text-[9px] transition-all ${selectedCourses.includes(compositeId) ? 'bg-cyan-500 text-black font-bold' : 'text-zinc-600 hover:text-zinc-300'
-                                    }`}
-                                >
-                                  {course}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+              {/* RESTORED: SMART SEARCH FOR COURSES */}
+              {viewMode === 'courses' && Object.keys(groupedData).map(uni => {
+                const searchLower = searchTerm.toLowerCase();
+                const uniMatches = uni.toLowerCase().includes(searchLower);
+
+                const matchingCats = Object.keys(groupedData[uni]).filter(cat => {
+                  const catMatches = cat.toLowerCase().includes(searchLower);
+                  const courseMatches = [...groupedData[uni][cat]].some(c => c.toLowerCase().includes(searchLower));
+                  return uniMatches || catMatches || courseMatches;
+                });
+
+                // Hide university if it doesn't match search
+                if (searchTerm && !uniMatches && matchingCats.length === 0) return null;
+
+                // Auto-expand if searching
+                const isUniExpanded = searchTerm ? true : expandedUnis[uni];
+
+                return (
+                  <div key={uni} className="space-y-1">
+                    <button onClick={() => toggleUni(uni)} className="w-full flex items-center justify-between p-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-[10px] font-bold text-zinc-300 uppercase">
+                      <span className="flex items-center gap-2"><School size={12} className="text-cyan-500" />{uni}</span>
+                      {isUniExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                    {isUniExpanded && (
+                      <div className="ml-4 space-y-1 border-l border-zinc-800 pl-2">
+                        {matchingCats.map(cat => {
+                          const catMatches = cat.toLowerCase().includes(searchLower);
+                          const coursesToShow = (uniMatches || catMatches) 
+                            ? [...groupedData[uni][cat]] 
+                            : [...groupedData[uni][cat]].filter(c => c.toLowerCase().includes(searchLower));
+
+                          return (
+                            <div key={cat}>
+                              <div className="w-full flex items-center p-1.5 text-[9px] font-bold text-zinc-500 uppercase">
+                                <span className="flex items-center gap-2"><BookOpen size={10} />{cat}</span>
+                              </div>
+                              <div className="ml-4 flex flex-col gap-1 py-1">
+                                {coursesToShow.map(course => {
+                                  const compositeId = `${uni} - ${course}`;
+                                  return (
+                                    <button
+                                      key={course}
+                                      onClick={() => selectedCourses.includes(compositeId)
+                                        ? setSelectedCourses(selectedCourses.filter(c => c !== compositeId))
+                                        : setSelectedCourses([...selectedCourses, compositeId])
+                                      }
+                                      className={`text-left px-2 py-1.5 rounded text-[9px] transition-all ${selectedCourses.includes(compositeId) ? 'bg-cyan-500 text-black font-bold' : 'text-zinc-600 hover:text-zinc-300'}`}
+                                    >
+                                      {course}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               {/* RENDER CATEGORY VIEW */}
               {viewMode === 'categories' && allCategories.filter(cat => cat.toLowerCase().includes(searchTerm.toLowerCase())).map(cat => (
@@ -285,8 +310,7 @@ export default function App() {
                     ? setSelectedCategories(selectedCategories.filter(c => c !== cat))
                     : setSelectedCategories([...selectedCategories, cat])
                   }
-                  className={`w-full text-left px-3 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedCategories.includes(cat) ? 'bg-purple-500 text-black shadow-lg shadow-purple-500/20' : 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                    }`}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedCategories.includes(cat) ? 'bg-purple-500 text-black shadow-lg shadow-purple-500/20' : 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
                 >
                   {cat}
                 </button>
@@ -309,7 +333,7 @@ export default function App() {
             <div className="flex flex-wrap gap-2 items-center flex-1">
               {activeSelections.map(id => (
                 <span key={id} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-zinc-950 border border-zinc-700 rounded-full text-[9px] font-bold text-zinc-300 uppercase">
-                  {id.split(' - ').pop()} {/* Show just the short name */}
+                  {id.split(' - ').pop()} 
                   <button onClick={() => setActiveSelections(activeSelections.filter(c => c !== id))} className="hover:bg-rose-500 hover:text-white p-1 rounded-full"><X size={10} /></button>
                 </span>
               ))}
@@ -328,18 +352,36 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl w-fit border border-zinc-800">
-            {['growth', 'performance', 'tradeoff'].map(tool => (
-              <button key={tool} onClick={() => setActiveTool(tool)} className={`px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${activeTool === tool ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-600 hover:text-zinc-300'}`}>{tool}</button>
-            ))}
+          {/* RESTORED: DYNAMIC METRIC DROPDOWN */}
+          <div className="flex justify-between items-center">
+            <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl w-fit border border-zinc-800">
+              {['growth', 'performance', 'tradeoff'].map(tool => (
+                <button key={tool} onClick={() => setActiveTool(tool)} className={`px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${activeTool === tool ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-600 hover:text-zinc-300'}`}>{tool}</button>
+              ))}
+            </div>
+
+            <select
+              value={salaryMetric}
+              onChange={(e) => setSalaryMetric(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg px-4 py-2.5 outline-none cursor-pointer"
+            >
+              <option value="basic_monthly_mean">Basic Mean</option>
+              <option value="basic_monthly_median">Basic Median</option>
+              <option value="gross_monthly_mean">Gross Mean</option>
+              <option value="gross_monthly_median">Gross Median</option>
+              <option value="gross_mthly_25_percentile">Gross 25th Pct</option>
+              <option value="gross_mthly_75_percentile">Gross 75th Pct</option>
+            </select>
           </div>
 
           <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-8 min-h-[500px]">
             {activeSelections.length > 0 ? (
               <div className="h-[450px] w-full">
+                
                 {activeTool === 'growth' && (
                   <ResponsiveContainer>
-                    <LineChart data={formatGrowthData(chartData, viewMode)}>
+                    {/* RESTORED: Pass salaryMetric to growth formatter */}
+                    <LineChart data={formatGrowthData(chartData, viewMode, salaryMetric)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                       <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
                       <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
@@ -368,9 +410,10 @@ export default function App() {
                   </ResponsiveContainer>
                 )}
 
+                {/* TEAMMATE'S TRADEOFF CODE (Kept Intact) */}
                 {activeTool === 'tradeoff' && (
                   <ResponsiveContainer>
-                    <ScatterChart>
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                       <XAxis type="number" dataKey="avg_employment" name="Employment" stroke="#71717a" domain={tradeoffDomains.x} fontSize={10} tickFormatter={(v) => `${Number(v).toFixed(1)}%`} />
                       <YAxis type="number" dataKey="avg_salary" name="Salary" stroke="#71717a" domain={tradeoffDomains.y} fontSize={10} tickFormatter={(v) => `$${Math.round(v)}`} />
@@ -429,14 +472,14 @@ function StatCard({ icon, label, value, subtext }) {
   );
 }
 
-// FORMAT HELPER UPDATED FOR VIEW MODE
-function formatGrowthData(data, viewMode) {
+// RESTORED: Dynamic Metric argument
+function formatGrowthData(data, viewMode, metric) {
   const years = [...new Set(data.map(d => d.year))].sort();
   return years.map(yr => {
     const obj = { year: yr };
     data.filter(d => d.year === yr).forEach(d => {
       const key = viewMode === 'courses' ? `${d.university} - ${d.course}` : d.course;
-      obj[key] = d.gross_monthly_median;
+      obj[key] = d[metric];
     });
     return obj;
   });
