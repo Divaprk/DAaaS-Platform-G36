@@ -80,6 +80,7 @@ export default function App() {
               course: cat,
               university: 'Industry Average',
               course_category: cat,
+              sample_size: yearData.length,
               // Mapped dynamically based on dropdown
               [salaryMetric]: yearData.reduce((acc, curr) => acc + (curr[salaryMetric] || 0), 0) / yearData.length,
               employment_rate_overall: yearData.reduce((acc, curr) => acc + curr.employment_rate_overall, 0) / yearData.length,
@@ -99,12 +100,13 @@ export default function App() {
     const grouped = chartData.reduce((acc, row) => {
       const key = viewMode === 'courses' ? `${row.university} - ${row.course}` : row.course_category;
       if (!acc[key]) {
-        acc[key] = { label: key, totalSalary: 0, totalEmployment: 0, count: 0 };
+        acc[key] = { label: key, totalSalary: 0, totalEmployment: 0, count: 0, totalSampleSize: 0 };
       }
       // ADAPTED: Uses the dynamic salaryMetric instead of hardcoded gross_monthly_median
       acc[key].totalSalary += Number(row[salaryMetric] || 0);
       acc[key].totalEmployment += Number(row.employment_rate_overall || 0);
       acc[key].count += 1;
+      acc[key].totalSampleSize += Number(row.sample_size || 1);
       return acc;
     }, {});
 
@@ -112,7 +114,7 @@ export default function App() {
       label: g.label,
       avg_salary: g.count ? g.totalSalary / g.count : 0,
       avg_employment: g.count ? g.totalEmployment / g.count : 0,
-      sample_size: g.count
+      sample_size: Math.max(1, Math.round(g.totalSampleSize))
     }));
 
     if (!points.length) return [];
@@ -177,6 +179,81 @@ export default function App() {
     'High Salary / Low Employment': '#fb923c',  // Orange
     'Low Salary / High Employment': '#93c5fd',  // Blue
     'Low Salary / Low Employment': '#f472b6'    // Pink
+  };
+
+  const salaryMetricLabel = useMemo(() => {
+    const labels = {
+      basic_monthly_mean: 'Basic Mean Salary',
+      basic_monthly_median: 'Basic Median Salary',
+      gross_monthly_mean: 'Gross Mean Salary',
+      gross_monthly_median: 'Gross Median Salary',
+      gross_mthly_25_percentile: 'Gross 25th Percentile Salary',
+      gross_mthly_75_percentile: 'Gross 75th Percentile Salary'
+    };
+    return labels[salaryMetric] || 'Salary';
+  }, [salaryMetric]);
+
+  const tradeoffSampleLegend = useMemo(() => {
+    if (!tradeoffData.length) return [];
+
+    const roundLegendSample = (value) => {
+      if (value < 10) return Math.round(value);
+      if (value < 50) return Math.round(value / 5) * 5;
+      if (value < 200) return Math.round(value / 10) * 10;
+      return Math.round(value / 25) * 25;
+    };
+
+    const values = [...new Set(tradeoffData.map(d => Number(d.sample_size) || 0))]
+      .filter(v => v > 0)
+      .sort((a, b) => a - b);
+
+    if (!values.length) return [];
+
+    const rounded = [...new Set(values.map(roundLegendSample))].sort((a, b) => a - b);
+    if (rounded.length <= 5) return rounded;
+
+    const idx = [
+      0,
+      Math.floor((rounded.length - 1) * 0.25),
+      Math.floor((rounded.length - 1) * 0.5),
+      Math.floor((rounded.length - 1) * 0.75),
+      rounded.length - 1
+    ];
+
+    return [...new Set(idx.map(i => rounded[i]))].sort((a, b) => a - b);
+  }, [tradeoffData]);
+
+  const tradeoffLegendBubblePx = (sampleSize) => {
+    if (!tradeoffData.length) return 10;
+    const all = tradeoffData.map(d => Number(d.sample_size) || 0).filter(v => v > 0);
+    if (!all.length) return 10;
+    const min = Math.min(...all);
+    const max = Math.max(...all);
+    if (min === max) return 12;
+    const area = 100 + ((sampleSize - min) / (max - min)) * 700;
+    return Math.max(8, Math.round(Math.sqrt(area)));
+  };
+
+  const tooltipContentStyle = { backgroundColor: '#09090b', border: '1px solid #27272a' };
+  const tooltipLabelStyle = { color: '#e4e4e7', fontWeight: 600 };
+  const tooltipItemStyle = { color: '#e4e4e7' };
+
+  const renderTradeoffTooltip = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    const point = payload[0]?.payload;
+    if (!point) return null;
+
+    const title = viewMode === 'courses' ? `Course: ${point.label}` : `Category: ${point.label}`;
+
+    return (
+      <div style={{ backgroundColor: '#09090b', border: '1px solid #27272a', padding: '8px 10px', borderRadius: '8px' }}>
+        <div style={{ color: '#e4e4e7', fontWeight: 700, marginBottom: 6 }}>{title}</div>
+        <div style={{ color: '#e4e4e7', fontSize: 12 }}>{`Avg Employment: ${Number(point.avg_employment).toFixed(2)}%`}</div>
+        <div style={{ color: '#e4e4e7', fontSize: 12 }}>{`${salaryMetricLabel}: $${Math.round(Number(point.avg_salary))}`}</div>
+        <div style={{ color: '#e4e4e7', fontSize: 12 }}>{`Sample Size: ${point.sample_size}`}</div>
+        <div style={{ color: '#e4e4e7', fontSize: 12 }}>{`Quadrant: ${point.quadrant}`}</div>
+      </div>
+    );
   };
 
   const activeSelections = viewMode === 'courses' ? selectedCourses : selectedCategories;
@@ -432,7 +509,12 @@ export default function App() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                         <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
                         <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
-                        <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`} />
+                        <Tooltip
+                          contentStyle={tooltipContentStyle}
+                          labelStyle={tooltipLabelStyle}
+                          itemStyle={tooltipItemStyle}
+                          formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`}
+                        />
                         {/* Legend removed - will render separately below */}
                         {activeSelections.map((c, i) => (
                           <Line key={c} type="monotone" dataKey={viewMode === 'courses' ? c : c} stroke={['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5]} strokeWidth={4} dot={{ r: 4 }} />
@@ -448,7 +530,11 @@ export default function App() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
                       <XAxis type="number" stroke="#71717a" fontSize={10} />
                       <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={120} tickFormatter={(value, index) => viewMode === 'courses' ? `${chartData[index]?.year} - ${chartData[index]?.university.split(' ')[0]} - ${value}` : `${chartData[index]?.year} - ${value}`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} />
+                      <Tooltip
+                        contentStyle={tooltipContentStyle}
+                        labelStyle={tooltipLabelStyle}
+                        itemStyle={tooltipItemStyle}
+                      />
                       <Bar dataKey="z_score" radius={[0, 4, 4, 0]}>
                         {chartData.map((entry, index) => (
                           <Cell key={index} fill={entry.z_score > 0 ? '#22d3ee' : '#fb7185'} />
@@ -468,15 +554,7 @@ export default function App() {
                       <ZAxis type="number" dataKey="sample_size" range={[100, 800]} />
                       <Tooltip
                         cursor={{ strokeDasharray: '3 3' }}
-                        contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }}
-                        formatter={(value, name, item) => {
-                          if (name === 'avg_employment') return [`${Number(value).toFixed(2)}%`, 'Avg Employment'];
-                          if (name === 'avg_salary') return [`$${Math.round(Number(value))}`, 'Avg Salary'];
-                          if (name === 'sample_size') return [value, 'Sample Size'];
-                          if (name === 'quadrant') return [value, 'Quadrant'];
-                          return [value, name];
-                        }}
-                        labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ''}
+                        content={renderTradeoffTooltip}
                       />
                       {tradeoffTrend && (
                         <ReferenceLine
@@ -525,6 +603,50 @@ export default function App() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tradeoff Legend Box */}
+          {activeSelections.length > 0 && activeTool === 'tradeoff' && (
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Tradeoff Legend</h3>
+                <span className="text-[9px] text-zinc-600 font-mono">{tradeoffData.length} points</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-[10px]">
+                <div className="space-y-2">
+                  <div className="text-zinc-500 uppercase tracking-widest text-[9px]">Quadrant Colors</div>
+                  <div className="flex flex-col gap-1">
+                    {Object.entries(quadrantColors).map(([label, color]) => (
+                      <span key={label} className="inline-flex items-center gap-2 text-zinc-300">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-zinc-500 uppercase tracking-widest text-[9px]">Sample Size</div>
+                  {tradeoffSampleLegend.length > 0 ? (
+                    <div className="flex items-end gap-3">
+                      {tradeoffSampleLegend.map(size => (
+                        <span key={`tradeoff-sz-${size}`} className="inline-flex flex-col items-center gap-1 text-zinc-300">
+                          <span
+                            className="inline-block rounded-full border border-zinc-300/70 bg-zinc-300/20"
+                            style={{
+                              width: `${tradeoffLegendBubblePx(size)}px`,
+                              height: `${tradeoffLegendBubblePx(size)}px`
+                            }}
+                          />
+                          <span>{size}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-zinc-500">No sample size data</div>
+                  )}
                 </div>
               </div>
             </div>
