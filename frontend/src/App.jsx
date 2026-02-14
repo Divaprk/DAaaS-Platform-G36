@@ -24,6 +24,7 @@ export default function App() {
   const [activeTool, setActiveTool] = useState('growth');
   const [expandedUnis, setExpandedUnis] = useState({});
   const [expandedCats, setExpandedCats] = useState({});
+  const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
 
   useEffect(() => {
     fetch(API_URL)
@@ -329,25 +330,70 @@ export default function App() {
             <StatCard icon={<Percent className="text-rose-400" size={20} />} label="Best Employability" value={summary ? summary.top_degree : "..."} subtext="Peak Job Security" />
           </div>
 
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex justify-between items-center text-center px-8">
-            <div className="flex flex-wrap gap-2 items-center flex-1">
-              {activeSelections.map(id => (
-                <span key={id} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-zinc-950 border border-zinc-700 rounded-full text-[9px] font-bold text-zinc-300 uppercase">
-                  {id.split(' - ').pop()}
-                  <button onClick={() => setActiveSelections(activeSelections.filter(c => c !== id))} className="hover:bg-rose-500 hover:text-white p-1 rounded-full"><X size={10} /></button>
+          <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 overflow-hidden transition-all duration-300">
+            {/* Header Bar - Always Visible */}
+            <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-900/70 transition-colors" onClick={() => setSelectionsCollapsed(!selectionsCollapsed)}>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Active Selections</span>
+                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 text-[9px] font-mono rounded-full border border-cyan-500/30">
+                  {activeSelections.length}
                 </span>
-              ))}
-              {activeSelections.length > 0 && <button onClick={() => setActiveSelections([])} className="text-[9px] text-zinc-600 hover:text-rose-400 font-bold uppercase ml-2">Clear</button>}
+              </div>
+              
+              <div className="flex items-center gap-4">
+                {/* Summary Stats - Always Visible */}
+                <div className="flex gap-6">
+                  <div className="text-right">
+                    <p className="text-[8px] uppercase tracking-widest text-zinc-500">Avg Pay</p>
+                    <p className="text-lg font-bold text-white">${selAvgSalary}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[8px] uppercase tracking-widest text-zinc-500">Avg Emp</p>
+                    <p className="text-lg font-bold text-white">{selAvgEmp}%</p>
+                  </div>
+                </div>
+                
+                {/* Collapse/Expand Icon */}
+                <div className={`transform transition-transform duration-300 ${selectionsCollapsed ? '' : 'rotate-180'}`}>
+                  <ChevronDown size={16} className="text-zinc-500" />
+                </div>
+              </div>
             </div>
 
-            <div className="flex gap-8 pl-4 border-l border-zinc-800">
-              <div className="space-y-1 text-right">
-                <p className="text-[8px] uppercase tracking-widest text-zinc-500">Selected Avg Pay</p>
-                <p className="text-xl font-bold text-white">${selAvgSalary}</p>
-              </div>
-              <div className="space-y-1 text-right">
-                <p className="text-[8px] uppercase tracking-widest text-zinc-500">Selected Avg Emp</p>
-                <p className="text-xl font-bold text-white">{selAvgEmp}%</p>
+            {/* Expandable Content - Selection Chips */}
+            <div className={`transition-all duration-300 overflow-hidden ${selectionsCollapsed ? 'max-h-0' : 'max-h-96'}`}>
+              <div className="px-4 pb-4 pt-2 border-t border-zinc-800">
+                <div className="flex flex-wrap gap-2 items-center">
+                  {activeSelections.length > 0 ? (
+                    <>
+                      {activeSelections.map(id => (
+                        <span key={id} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-zinc-950 border border-zinc-700 rounded-full text-[9px] font-bold text-zinc-300 uppercase hover:border-zinc-600 transition-colors">
+                          {id.split(' - ').pop()}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveSelections(activeSelections.filter(c => c !== id));
+                            }} 
+                            className="hover:bg-rose-500 hover:text-white p-1 rounded-full transition-colors"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveSelections([]);
+                        }} 
+                        className="text-[9px] text-zinc-600 hover:text-rose-400 font-bold uppercase ml-2 transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[9px] text-zinc-600 uppercase tracking-widest italic">No selections</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
