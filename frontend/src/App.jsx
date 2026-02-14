@@ -256,6 +256,31 @@ export default function App() {
     );
   };
 
+  const renderPerformanceTooltip = ({ active, payload, label: tooltipLabel }) => {
+    if (!active || !payload || !payload.length) return null;
+    // use payload from the hovered bar (shared={false} ensures per-bar payload)
+    const item = payload[0];
+    const point = item?.payload;
+    const z = point?.z_score != null ? Number(point.z_score) : Number(item?.value);
+    if (z === undefined || isNaN(z)) return null;
+    const label = point
+      ? (viewMode === 'courses'
+        ? `${point.year} · ${point.university} · ${point.course}`
+        : `${point.year} · ${point.course}`)
+      : (tooltipLabel ?? '');
+    const interpretation = z > 0 ? 'Above average' : 'Below average';
+    const detail = z !== 0 ? `${Math.abs(z).toFixed(2)} standard deviation${Math.abs(z) !== 1 ? 's' : ''} ${z > 0 ? 'above' : 'below'} the mean` : 'at the mean';
+
+    return (
+      <div key={point ? `${point.year}-${point.university}-${point.course}` : tooltipLabel} style={{ backgroundColor: '#09090b', border: '1px solid #27272a', padding: '8px 10px', borderRadius: '8px' }}>
+        <div style={{ color: '#e4e4e7', fontWeight: 700, marginBottom: 6 }}>{label}</div>
+        <div style={{ color: '#e4e4e7', fontSize: 12 }}>Z-score: {z.toFixed(2)}</div>
+        <div style={{ color: z > 0 ? '#22d3ee' : '#fb7185', fontSize: 12, fontWeight: 600 }}>{interpretation}</div>
+        <div style={{ color: '#a1a1aa', fontSize: 11, marginTop: 4 }}>{detail}</div>
+      </div>
+    );
+  };
+
   const activeSelections = viewMode === 'courses' ? selectedCourses : selectedCategories;
   const setActiveSelections = viewMode === 'courses' ? setSelectedCourses : setSelectedCategories;
 
@@ -530,14 +555,10 @@ export default function App() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
                       <XAxis type="number" stroke="#71717a" fontSize={10} />
                       <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={120} tickFormatter={(value, index) => viewMode === 'courses' ? `${chartData[index]?.year} - ${chartData[index]?.university.split(' ')[0]} - ${value}` : `${chartData[index]?.year} - ${value}`} />
-                      <Tooltip
-                        contentStyle={tooltipContentStyle}
-                        labelStyle={tooltipLabelStyle}
-                        itemStyle={tooltipItemStyle}
-                      />
+                      <Tooltip content={renderPerformanceTooltip} shared={false} />
                       <Bar dataKey="z_score" radius={[0, 4, 4, 0]}>
                         {chartData.map((entry, index) => (
-                          <Cell key={index} fill={entry.z_score > 0 ? '#22d3ee' : '#fb7185'} />
+                          <Cell key={`${entry.year}-${entry.university}-${entry.course}-${index}`} fill={entry.z_score > 0 ? '#22d3ee' : '#fb7185'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -603,6 +624,26 @@ export default function App() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Performance Legend - Z-score colors and short explanation */}
+          {activeSelections.length > 0 && activeTool === 'performance' && (
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Chart Legend</h3>
+              </div>
+              <p className="text-[9px] text-zinc-500 mb-3">Z-score measures relative performance vs dataset average.</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3 p-2 rounded-lg">
+                  <div className="w-6 h-3 rounded" style={{ backgroundColor: '#22d3ee' }} />
+                  <span className="text-[10px] text-zinc-300">Above average (z &gt; 0)</span>
+                </div>
+                <div className="flex items-center gap-3 p-2 rounded-lg">
+                  <div className="w-6 h-3 rounded" style={{ backgroundColor: '#fb7185' }} />
+                  <span className="text-[10px] text-zinc-300">Below average (z ≤ 0)</span>
                 </div>
               </div>
             </div>
