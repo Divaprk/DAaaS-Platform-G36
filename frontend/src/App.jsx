@@ -269,7 +269,7 @@ export default function App() {
                     <BarChart data={chartData} layout="vertical" margin={{ left: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
                       <XAxis type="number" stroke="#71717a" fontSize={10} />
-                      <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={120} tickFormatter={(value, index) => viewMode === 'courses' ? `${chartData[index]?.year} ${chartData[index]?.university.split(' ')[0]} - ${value}` : `${chartData[index]?.year} ${value}`} />
+                      <YAxis dataKey="course" type="category" stroke="#71717a" fontSize={8} width={120} tickFormatter={(value, index) => viewMode === 'courses' ? `${chartData[index]?.university.split(' ')[0]} - ${value}` : value} />
                       <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} />
                       <Bar dataKey="z_score" radius={[0, 4, 4, 0]}>
                         {chartData.map((entry, index) => (
