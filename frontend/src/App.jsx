@@ -425,19 +425,21 @@ export default function App() {
               <div className="h-[450px] w-full">
 
                 {activeTool === 'growth' && (
-                  <ResponsiveContainer>
-                    {/* RESTORED: Pass salaryMetric to growth formatter */}
-                    <LineChart data={formatGrowthData(chartData, viewMode, salaryMetric)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                      <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
-                      <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`} />
-                      <Legend />
-                      {activeSelections.map((c, i) => (
-                        <Line key={c} type="monotone" dataKey={viewMode === 'courses' ? c : c} stroke={['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5]} strokeWidth={4} dot={{ r: 4 }} />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <>
+                    <ResponsiveContainer>
+                      {/* RESTORED: Pass salaryMetric to growth formatter */}
+                      <LineChart data={formatGrowthData(chartData, viewMode, salaryMetric)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
+                        <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
+                        <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`} />
+                        {/* Legend removed - will render separately below */}
+                        {activeSelections.map((c, i) => (
+                          <Line key={c} type="monotone" dataKey={viewMode === 'courses' ? c : c} stroke={['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5]} strokeWidth={4} dot={{ r: 4 }} />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </>
                 )}
 
                 {activeTool === 'performance' && (
@@ -499,6 +501,35 @@ export default function App() {
               <div className="h-[400px] flex flex-col items-center justify-center text-zinc-700 font-mono text-[10px] tracking-widest uppercase animate-pulse">Select Items to Analyze</div>
             )}
           </div>
+
+          {/* Custom Legend Section - Scrollable, Only for Growth Chart */}
+          {activeSelections.length > 0 && activeTool === 'growth' && (
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Chart Legend</h3>
+                <span className="text-[9px] text-zinc-600 font-mono">{activeSelections.length} series</span>
+              </div>
+              <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {activeSelections.map((selection, i) => {
+                    const color = ['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5];
+                    return (
+                      <div key={selection} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="w-8 h-1 rounded-full" style={{ backgroundColor: color }}></div>
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }}></div>
+                        </div>
+                        <span className="text-[9px] text-zinc-300 truncate" title={selection}>
+                          {selection}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
     </div>
