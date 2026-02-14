@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar, ScatterChart, Scatter,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+  XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
 import { Search, TrendingUp, Loader2, DollarSign, Award, Percent, X, ChevronRight, ChevronDown, School, BookOpen, Layers } from 'lucide-react';
 
@@ -87,6 +87,94 @@ export default function App() {
       return aggregated;
     }
   }, [data, viewMode, selectedCourses, selectedCategories]);
+
+  // Tradeoff view should show one point per selected course/category (not every year row).
+  const tradeoffData = useMemo(() => {
+    if (!chartData.length) return [];
+
+    const grouped = chartData.reduce((acc, row) => {
+      const key = viewMode === 'courses' ? `${row.university} - ${row.course}` : row.course_category;
+      if (!acc[key]) {
+        acc[key] = {
+          label: key,
+          totalSalary: 0,
+          totalEmployment: 0,
+          count: 0
+        };
+      }
+      acc[key].totalSalary += Number(row.gross_monthly_median || 0);
+      acc[key].totalEmployment += Number(row.employment_rate_overall || 0);
+      acc[key].count += 1;
+      return acc;
+    }, {});
+
+    const points = Object.values(grouped).map(g => ({
+      label: g.label,
+      avg_salary: g.count ? g.totalSalary / g.count : 0,
+      avg_employment: g.count ? g.totalEmployment / g.count : 0,
+      sample_size: g.count
+    }));
+
+    if (!points.length) return [];
+
+    const salaryMedian = [...points].map(p => p.avg_salary).sort((a, b) => a - b);
+    const employmentMedian = [...points].map(p => p.avg_employment).sort((a, b) => a - b);
+    const midSalary = salaryMedian[Math.floor(salaryMedian.length / 2)];
+    const midEmployment = employmentMedian[Math.floor(employmentMedian.length / 2)];
+
+    return points.map(p => {
+      const salaryLevel = p.avg_salary >= midSalary ? 'High' : 'Low';
+      const employmentLevel = p.avg_employment >= midEmployment ? 'High' : 'Low';
+      return {
+        ...p,
+        quadrant: `${salaryLevel} Salary / ${employmentLevel} Employment`
+      };
+    });
+  }, [chartData, viewMode]);
+
+  const tradeoffDomains = useMemo(() => {
+    if (!tradeoffData.length) return { x: [70, 100], y: [0, 7000] };
+    const xVals = tradeoffData.map(d => d.avg_employment);
+    const yVals = tradeoffData.map(d => d.avg_salary);
+    const xMin = Math.min(...xVals);
+    const xMax = Math.max(...xVals);
+    const yMin = Math.min(...yVals);
+    const yMax = Math.max(...yVals);
+    const xPad = Math.max(0.5, (xMax - xMin) * 0.08);
+    const yPad = Math.max(80, (yMax - yMin) * 0.08);
+    return {
+      x: [Math.max(0, xMin - xPad), Math.min(100, xMax + xPad)],
+      y: [Math.max(0, yMin - yPad), yMax + yPad]
+    };
+  }, [tradeoffData]);
+
+  const tradeoffTrend = useMemo(() => {
+    if (tradeoffData.length < 2) return null;
+    const x = tradeoffData.map(d => d.avg_employment);
+    const y = tradeoffData.map(d => d.avg_salary);
+    const n = x.length;
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((acc, xi, i) => acc + (xi * y[i]), 0);
+    const sumX2 = x.reduce((acc, xi) => acc + (xi * xi), 0);
+    const denom = (n * sumX2) - (sumX * sumX);
+    if (denom === 0) return null;
+    const slope = ((n * sumXY) - (sumX * sumY)) / denom;
+    const intercept = (sumY - (slope * sumX)) / n;
+    const x1 = Math.min(...x);
+    const x2 = Math.max(...x);
+    return [
+      { x: x1, y: (slope * x1) + intercept },
+      { x: x2, y: (slope * x2) + intercept }
+    ];
+  }, [tradeoffData]);
+
+  const quadrantColors = {
+    'High Salary / High Employment': '#34d399',
+    'High Salary / Low Employment': '#fb923c',
+    'Low Salary / High Employment': '#93c5fd',
+    'Low Salary / Low Employment': '#f472b6'
+  };
 
   // Shared state references for active view
   const activeSelections = viewMode === 'courses' ? selectedCourses : selectedCategories;
@@ -284,14 +372,36 @@ export default function App() {
                   <ResponsiveContainer>
                     <ScatterChart>
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis type="number" dataKey="employment_rate_overall" name="Employment" stroke="#71717a" domain={[70, 100]} fontSize={10} />
-                      <YAxis type="number" dataKey="gross_monthly_median" name="Salary" stroke="#71717a" fontSize={10} />
-                      <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} labelStyle={{ color: '#fff' }} itemStyle={{ color: '#22d3ee' }} formatter={(value, name) => {
-                        if (name === 'Employment') return `${value.toFixed(2)}%`;
-                        if (name === 'Salary') return `$${value.toFixed(2)}`;
-                        return value;
-                      }} />
-                      <Scatter name="Degrees" data={chartData} fill="#22d3ee" />
+                      <XAxis type="number" dataKey="avg_employment" name="Employment" stroke="#71717a" domain={tradeoffDomains.x} fontSize={10} tickFormatter={(v) => `${Number(v).toFixed(1)}%`} />
+                      <YAxis type="number" dataKey="avg_salary" name="Salary" stroke="#71717a" domain={tradeoffDomains.y} fontSize={10} tickFormatter={(v) => `$${Math.round(v)}`} />
+                      <ZAxis type="number" dataKey="sample_size" range={[100, 800]} />
+                      <Tooltip
+                        cursor={{ strokeDasharray: '3 3' }}
+                        contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }}
+                        formatter={(value, name, item) => {
+                          if (name === 'avg_employment') return [`${Number(value).toFixed(2)}%`, 'Avg Employment'];
+                          if (name === 'avg_salary') return [`$${Math.round(Number(value))}`, 'Avg Salary'];
+                          if (name === 'sample_size') return [value, 'Sample Size'];
+                          if (name === 'quadrant') return [value, 'Quadrant'];
+                          return [value, name];
+                        }}
+                        labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ''}
+                      />
+                      {tradeoffTrend && (
+                        <ReferenceLine
+                          segment={[
+                            { x: tradeoffTrend[0].x, y: tradeoffTrend[0].y },
+                            { x: tradeoffTrend[1].x, y: tradeoffTrend[1].y }
+                          ]}
+                          stroke="#a1a1aa"
+                          strokeDasharray="6 4"
+                        />
+                      )}
+                      <Scatter name="Tradeoff" data={tradeoffData}>
+                        {tradeoffData.map((entry, index) => (
+                          <Cell key={`tradeoff-${index}`} fill={quadrantColors[entry.quadrant] || '#22d3ee'} />
+                        ))}
+                      </Scatter>
                     </ScatterChart>
                   </ResponsiveContainer>
                 )}
