@@ -25,6 +25,7 @@ export default function App() {
   const [expandedUnis, setExpandedUnis] = useState({});
   const [expandedCats, setExpandedCats] = useState({});
   const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
+  const [yearRange, setYearRange] = useState([2013, 2022]);
 
   useEffect(() => {
     fetch(API_URL)
@@ -503,7 +504,7 @@ export default function App() {
           {/* RESTORED: DYNAMIC METRIC DROPDOWN */}
           <div className="flex justify-between items-center">
             <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl w-fit border border-zinc-800">
-              {['growth', 'performance', 'tradeoff'].map(tool => (
+              {['growth', 'performance', 'tradeoff', 'university'].map(tool => (
                 <button key={tool} onClick={() => setActiveTool(tool)} className={`px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${activeTool === tool ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-600 hover:text-zinc-300'}`}>{tool}</button>
               ))}
             </div>
@@ -541,9 +542,25 @@ export default function App() {
                           formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`}
                         />
                         {/* Legend removed - will render separately below */}
-                        {activeSelections.map((c, i) => (
-                          <Line key={c} type="monotone" dataKey={viewMode === 'courses' ? c : c} stroke={['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5]} strokeWidth={4} dot={{ r: 4 }} />
-                        ))}
+                        {activeSelections.map((c, i) => {
+                          // Expanded 20-color palette
+                          const colors = [
+                            '#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80',
+                            '#f97316', '#06b6d4', '#ec4899', '#84cc16', '#8b5cf6',
+                            '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#14b8a6',
+                            '#f43f5e', '#eab308', '#6366f1', '#059669', '#d946ef'
+                          ];
+                          return (
+                            <Line 
+                              key={c} 
+                              type="monotone" 
+                              dataKey={viewMode === 'courses' ? c : c} 
+                              stroke={colors[i % colors.length]} 
+                              strokeWidth={4} 
+                              dot={{ r: 4 }} 
+                            />
+                          );
+                        })}
                       </LineChart>
                     </ResponsiveContainer>
                   </>
@@ -595,9 +612,150 @@ export default function App() {
                     </ScatterChart>
                   </ResponsiveContainer>
                 )}
+
+                {/* UNIVERSITY COMPARISON BY CATEGORY */}
+                {activeTool === 'university' && (
+                  <>
+                    {viewMode === 'categories' && selectedCategories.length > 0 && (
+                      <div className="mb-6 p-4 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                            Year Range Filter
+                          </span>
+                          <span className="text-[11px] font-mono text-cyan-400">
+                            {yearRange[0]} - {yearRange[1]}
+                          </span>
+                        </div>
+                        
+                        <div className="flex gap-4 items-center">
+                          <div className="flex-1">
+                            <label className="text-[9px] text-zinc-500 uppercase block mb-2">From</label>
+                            <input
+                              type="range"
+                              min="2013"
+                              max={yearRange[1]}
+                              value={yearRange[0]}
+                              onChange={(e) => setYearRange([parseInt(e.target.value), yearRange[1]])}
+                              className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            />
+                            <div className="text-[10px] text-zinc-600 mt-1 text-center">{yearRange[0]}</div>
+                          </div>
+
+                          <div className="flex-1">
+                            <label className="text-[9px] text-zinc-500 uppercase block mb-2">To</label>
+                            <input
+                              type="range"
+                              min={yearRange[0]}
+                              max="2022"
+                              value={yearRange[1]}
+                              onChange={(e) => setYearRange([yearRange[0], parseInt(e.target.value)])}
+                              className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            />
+                            <div className="text-[10px] text-zinc-600 mt-1 text-center">{yearRange[1]}</div>
+                          </div>
+
+                          <button
+                            onClick={() => setYearRange([2013, 2022])}
+                            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[9px] font-bold uppercase tracking-widest rounded-lg transition-colors self-end"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <ResponsiveContainer>
+                    <BarChart 
+                      data={(() => {
+                        // Only works in Categories view mode
+                        if (viewMode !== 'categories' || selectedCategories.length === 0) {
+                          return [];
+                        }
+
+                        // Group by university and selected categories
+                        const universities = [...new Set(data.map(d => d.university))].sort();
+                        console.log('🔍 DEBUG - Universities extracted:', universities);
+                        const chartData = [];
+
+                        selectedCategories.forEach(category => {
+                          const categoryData = { category };
+                          
+                          universities.forEach(uni => {
+                            const uniCatData = data.filter(d => 
+                              d.university === uni && 
+                              d.course_category === category &&
+                              d.year >= yearRange[0] && 
+                              d.year <= yearRange[1]
+                            );
+                            console.log(`🔍 DEBUG - Processing uni: "${uni}", category: "${category}", found ${uniCatData.length} records`);
+                            
+                            if (uniCatData.length > 0) {
+                              const avgSalary = uniCatData.reduce((acc, curr) => 
+                                acc + (curr[salaryMetric] || 0), 0) / uniCatData.length;
+                              categoryData[uni] = Math.round(avgSalary);
+                            }
+                          });
+                          
+                          chartData.push(categoryData);
+                        });
+
+                        return chartData;
+                      })()}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                      <XAxis 
+                        dataKey="category" 
+                        stroke="#71717a" 
+                        fontSize={9} 
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis 
+                        stroke="#71717a" 
+                        fontSize={10} 
+                        tickFormatter={(val) => `$${val}`} 
+                      />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }}
+                          formatter={(value, name) => [`$${value}`, `${name} - Avg Salary`]}
+                        />
+                      <Legend />
+                      {(() => {
+                          const barUnis = [...new Set(data.map(d => d.university))].sort();
+                          console.log('🔍 DEBUG - Bar chart universities:', barUnis);
+                          return barUnis;
+                        })().map((uni, i) => {
+                        const colors = [
+                          '#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80',
+                          '#f97316', '#06b6d4', '#ec4899', '#84cc16', '#8b5cf6'
+                        ];
+                        return (
+                          <Bar 
+                            key={uni} 
+                            dataKey={uni} 
+                            fill={colors[i % colors.length]} 
+                            name={uni}
+                          />
+                        );
+                      })}
+                    </BarChart>
+                  </ResponsiveContainer>
+                  </>
+                )}
               </div>
             ) : (
-              <div className="h-[400px] flex flex-col items-center justify-center text-zinc-700 font-mono text-[10px] tracking-widest uppercase animate-pulse">Select Items to Analyze</div>
+              <div className="h-[400px] flex flex-col items-center justify-center text-zinc-700 font-mono text-[10px] tracking-widest uppercase">
+                {activeTool === 'university' && viewMode === 'courses' ? (
+                  <div className="text-center space-y-2 animate-pulse">
+                    <p className="mb-2">University Comparison Requires Categories View</p>
+                    <p className="text-[9px] text-zinc-600 normal-case tracking-normal">Switch to Categories tab and select course categories</p>
+                  </div>
+                ) : (
+                  <p className="animate-pulse">Select Items to Analyze</p>
+                )}
+              </div>
             )}
           </div>
 
@@ -611,7 +769,14 @@ export default function App() {
               <div className="max-h-40 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {activeSelections.map((selection, i) => {
-                    const color = ['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5];
+                    // Expanded 20-color palette
+                    const colors = [
+                      '#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80',
+                      '#f97316', '#06b6d4', '#ec4899', '#84cc16', '#8b5cf6',
+                      '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#14b8a6',
+                      '#f43f5e', '#eab308', '#6366f1', '#059669', '#d946ef'
+                    ];
+                    const color = colors[i % colors.length];
                     return (
                       <div key={selection} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors">
                         <div className="flex items-center gap-2 flex-shrink-0">
