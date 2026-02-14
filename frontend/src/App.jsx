@@ -199,8 +199,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200 p-8 font-sans">
       <header className="max-w-7xl mx-auto mb-10">
-        <h1 className="text-5xl font-black text-white tracking-tighter italic">DAaaS_G36</h1>
-        <p className="text-zinc-500 font-mono text-xs uppercase tracking-[0.3em] mt-2">Unified Analytics Platform</p>
+        <h1 className="text-5xl font-black text-white tracking-tighter italic">Graduate Employment Analytics</h1>
+        <p className="text-zinc-500 font-mono text-xs uppercase tracking-[0.3em] mt-2">Group 36</p>
       </header>
 
       <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
