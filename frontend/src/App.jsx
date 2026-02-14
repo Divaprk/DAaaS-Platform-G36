@@ -284,9 +284,13 @@ export default function App() {
                   <ResponsiveContainer>
                     <ScatterChart>
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis type="number" dataKey="employment_rate_overall" name="Employment" unit="%" stroke="#71717a" domain={[70, 100]} fontSize={10} />
-                      <YAxis type="number" dataKey="gross_monthly_median" name="Salary" unit="$" stroke="#71717a" fontSize={10} />
-                      <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} />
+                      <XAxis type="number" dataKey="employment_rate_overall" name="Employment" stroke="#71717a" domain={[70, 100]} fontSize={10} />
+                      <YAxis type="number" dataKey="gross_monthly_median" name="Salary" stroke="#71717a" fontSize={10} />
+                      <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} labelStyle={{ color: '#fff' }} itemStyle={{ color: '#22d3ee' }} formatter={(value, name) => {
+                        if (name === 'Employment') return `${value.toFixed(2)}%`;
+                        if (name === 'Salary') return `$${value.toFixed(2)}`;
+                        return value;
+                      }} />
                       <Scatter name="Degrees" data={chartData} fill="#22d3ee" />
                     </ScatterChart>
                   </ResponsiveContainer>
