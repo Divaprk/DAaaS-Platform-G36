@@ -76,7 +76,7 @@ export default function App() {
           if (yearData.length > 0) {
             aggregated.push({
               year: year,
-              course: cat, 
+              course: cat,
               university: 'Industry Average',
               course_category: cat,
               // Mapped dynamically based on dropdown
@@ -101,7 +101,7 @@ export default function App() {
         acc[key] = { label: key, totalSalary: 0, totalEmployment: 0, count: 0 };
       }
       // ADAPTED: Uses the dynamic salaryMetric instead of hardcoded gross_monthly_median
-      acc[key].totalSalary += Number(row[salaryMetric] || 0); 
+      acc[key].totalSalary += Number(row[salaryMetric] || 0);
       acc[key].totalEmployment += Number(row.employment_rate_overall || 0);
       acc[key].count += 1;
       return acc;
@@ -267,8 +267,8 @@ export default function App() {
                       <div className="ml-4 space-y-1 border-l border-zinc-800 pl-2">
                         {matchingCats.map(cat => {
                           const catMatches = cat.toLowerCase().includes(searchLower);
-                          const coursesToShow = (uniMatches || catMatches) 
-                            ? [...groupedData[uni][cat]] 
+                          const coursesToShow = (uniMatches || catMatches)
+                            ? [...groupedData[uni][cat]]
                             : [...groupedData[uni][cat]].filter(c => c.toLowerCase().includes(searchLower));
 
                           return (
@@ -333,7 +333,7 @@ export default function App() {
             <div className="flex flex-wrap gap-2 items-center flex-1">
               {activeSelections.map(id => (
                 <span key={id} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-zinc-950 border border-zinc-700 rounded-full text-[9px] font-bold text-zinc-300 uppercase">
-                  {id.split(' - ').pop()} 
+                  {id.split(' - ').pop()}
                   <button onClick={() => setActiveSelections(activeSelections.filter(c => c !== id))} className="hover:bg-rose-500 hover:text-white p-1 rounded-full"><X size={10} /></button>
                 </span>
               ))}
@@ -377,7 +377,7 @@ export default function App() {
           <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-8 min-h-[500px]">
             {activeSelections.length > 0 ? (
               <div className="h-[450px] w-full">
-                
+
                 {activeTool === 'growth' && (
                   <ResponsiveContainer>
                     {/* RESTORED: Pass salaryMetric to growth formatter */}
@@ -385,7 +385,7 @@ export default function App() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                       <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
                       <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a' }} formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`} />
                       <Legend />
                       {activeSelections.map((c, i) => (
                         <Line key={c} type="monotone" dataKey={viewMode === 'courses' ? c : c} stroke={['#22d3ee', '#a855f7', '#fb7185', '#facc15', '#4ade80'][i % 5]} strokeWidth={4} dot={{ r: 4 }} />
