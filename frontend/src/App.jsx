@@ -9,6 +9,7 @@ const API_URL = "https://uihec8ny2d.execute-api.us-east-1.amazonaws.com/analytic
 
 export default function App() {
   const [data, setData] = useState([]);
+  const [summary, setSummary] = useState(null); // Added summary state
   const [loading, setLoading] = useState(true);
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -17,28 +18,37 @@ export default function App() {
   const [expandedCats, setExpandedCats] = useState({});
 
   useEffect(() => {
-    fetch(API_URL).then(res => res.json()).then(json => {
-      setData(json);
-      setLoading(false);
-    }).catch(err => console.error(err));
+    fetch(API_URL)
+      .then(res => res.json())
+      .then(json => {
+        // Correctly mapping the new backend structure
+        setData(json.records); 
+        setSummary(json.summary); 
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
   }, []);
 
   const groupedData = useMemo(() => {
-    const groups = {};
-    data.forEach(item => {
-      const { university, course_category, course } = item;
-      if (!groups[university]) groups[university] = {};
-      if (!groups[university][course_category]) groups[university][course_category] = new Set();
-      groups[university][course_category].add(course);
-    });
-    return groups;
-  }, [data]);
+      const groups = {};
+      // ADD THIS GUARD: If data is undefined or not an array, return empty groups
+      if (!data || !Array.isArray(data)) return groups;
+
+      data.forEach(item => {
+        const { university, course_category, course } = item;
+        if (!university || !course_category) return; // Skip invalid rows
+        
+        if (!groups[university]) groups[university] = {};
+        if (!groups[university][course_category]) groups[university][course_category] = new Set();
+        groups[university][course_category].add(course);
+      });
+      return groups;
+    }, [data]);
 
   const chartData = data.filter(d => selectedCourses.includes(d.course));
-
-  const avgSalary = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.gross_monthly_median, 0) / chartData.length).toFixed(0) : 0;
-  const maxSalary = chartData.length > 0 ? Math.max(...chartData.map(d => d.gross_monthly_median)) : 0;
-  const avgEmp = chartData.length > 0 ? (chartData.reduce((acc, curr) => acc + curr.employment_rate_overall, 0) / chartData.length).toFixed(1) : 0;
 
   const toggleUni = (uni) => setExpandedUnis(prev => ({ ...prev, [uni]: !prev[uni] }));
   const toggleCat = (cat) => setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -116,20 +126,27 @@ export default function App() {
 
         {/* Analytics Area */}
         <div className="lg:col-span-3 space-y-6">
-          <div className="flex flex-wrap gap-2 min-h-[32px] items-center">
-            {selectedCourses.map(course => (
-              <span key={course} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-zinc-900 border border-zinc-700 rounded-full text-[10px] font-bold text-zinc-300 uppercase">
-                {course}
-                <button onClick={() => setSelectedCourses(selectedCourses.filter(c => c !== course))} className="hover:bg-rose-500 hover:text-white p-1 rounded-full"><X size={12}/></button>
-              </span>
-            ))}
-            {selectedCourses.length > 0 && <button onClick={() => setSelectedCourses([])} className="text-[10px] text-zinc-600 hover:text-rose-400 font-bold uppercase ml-2">Reset</button>}
-          </div>
-
+          
+          {/* MOVED: TOP SUMMARY CARDS (Inside the return statement now) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard icon={<DollarSign className="text-cyan-400" size={20}/>} label="Avg Salary" value={`$${avgSalary}`} />
-            <StatCard icon={<Award className="text-purple-400" size={20}/>} label="Peak Salary" value={`$${maxSalary}`} />
-            <StatCard icon={<Percent className="text-rose-400" size={20}/>} label="Avg Employment" value={`${avgEmp}%`} />
+            <StatCard 
+              icon={<DollarSign className="text-cyan-400" size={20}/>} 
+              label="Market Avg Salary" 
+              value={summary ? summary.avg_salary : "$0"} 
+              subtext="Global Median"
+            />
+            <StatCard 
+              icon={<Award className="text-purple-400" size={20}/>} 
+              label="Top University" 
+              value={summary ? summary.top_university : "..."} 
+              subtext="Highest Avg Pay"
+            />
+            <StatCard 
+              icon={<Percent className="text-rose-400" size={20}/>} 
+              label="Best Employability" 
+              value={summary ? summary.top_degree : "..."} 
+              subtext="Peak Job Security"
+            />
           </div>
 
           <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl w-fit border border-zinc-800">
@@ -141,7 +158,6 @@ export default function App() {
           <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-8 min-h-[500px]">
              {selectedCourses.length > 0 ? (
                <div className="h-[450px] w-full">
-                  {/* GROWTH CHART */}
                   {activeTool === 'growth' && (
                     <ResponsiveContainer>
                       <LineChart data={formatGrowthData(chartData)}>
@@ -157,7 +173,6 @@ export default function App() {
                     </ResponsiveContainer>
                   )}
 
-                  {/* PERFORMANCE CHART (FIXED) */}
                   {activeTool === 'performance' && (
                     <ResponsiveContainer>
                       <BarChart data={chartData} layout="vertical" margin={{ left: 30 }}>
@@ -174,7 +189,6 @@ export default function App() {
                     </ResponsiveContainer>
                   )}
 
-                  {/* TRADEOFF CHART (FIXED) */}
                   {activeTool === 'tradeoff' && (
                     <ResponsiveContainer>
                       <ScatterChart>
@@ -197,15 +211,25 @@ export default function App() {
   );
 }
 
-function StatCard({ icon, label, value }) {
+// Sub-component defined outside the main app
+function StatCard({ icon, label, value, subtext }) {
   return (
-    <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-      <div className="flex items-center gap-3 mb-3">{icon}<span className="text-[9px] uppercase font-black tracking-widest text-zinc-600">{label}</span></div>
-      <div className="text-3xl font-black text-white tracking-tighter">{value}</div>
+    <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 shadow-lg flex flex-col">
+      <div className="flex items-center gap-3 mb-3">
+        {icon}
+        <span className="text-[9px] uppercase font-black tracking-widest text-zinc-600">{label}</span>
+      </div>
+      <div className="text-2xl font-black text-white tracking-tighter truncate" title={value}>
+        {value}
+      </div>
+      <div className="text-[8px] uppercase text-zinc-700 font-bold mt-1 tracking-wider">
+        {subtext}
+      </div>
     </div>
   );
 }
 
+// Data helper function
 function formatGrowthData(data) {
   const years = [...new Set(data.map(d => d.year))].sort();
   return years.map(yr => {
