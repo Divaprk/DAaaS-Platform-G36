@@ -26,6 +26,8 @@ export default function App() {
   const [expandedCats, setExpandedCats] = useState({});
   const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
   const [yearRange, setYearRange] = useState([2013, 2022]);
+  const [growthType, setGrowthType] = useState("trend"); 
+// "trend" or "yoy"
 
   useEffect(() => {
     fetch(API_URL)
@@ -531,15 +533,56 @@ export default function App() {
                   <>
                     <ResponsiveContainer>
                       {/* RESTORED: Pass salaryMetric to growth formatter */}
-                      <LineChart data={formatGrowthData(chartData, viewMode, salaryMetric)}>
+                      <div className="flex gap-2 mb-3">
+                        <button
+                          onClick={() => setGrowthType("trend")}
+                          className={`px-4 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors
+                            ${growthType === "trend" ? "bg-blue-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"}`}
+                        >
+                          Salary Trend
+                        </button>
+
+                        <button
+                          onClick={() => setGrowthType("yoy")}
+                          className={`px-4 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors
+                            ${growthType === "yoy" ? "bg-blue-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"}`}
+                        >
+                          Year-on-Year %
+                        </button>
+                      </div>
+
+
+                        
+                      {/*<LineChart data={formatGrowthData(chartData, viewMode, salaryMetric)}>*/}
+                        <LineChart
+                          data={
+                            growthType === "trend"
+                              ? formatGrowthData(chartData, viewMode, salaryMetric)
+                              : formatYoYData(chartData, viewMode, salaryMetric)
+                          }
+                        >
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                         <XAxis dataKey="year" stroke="#71717a" fontSize={10} />
-                        <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} />
+                        {/* <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `$${val}`} /> */}
+                        <YAxis
+                          stroke="#71717a"
+                          fontSize={10}
+                          tickFormatter={(val) =>
+                            growthType === "trend"
+                              ? `$${val}`
+                              : `${Number(val).toFixed(1)}%`
+                          }
+                        />
                         <Tooltip
                           contentStyle={tooltipContentStyle}
                           labelStyle={tooltipLabelStyle}
                           itemStyle={tooltipItemStyle}
-                          formatter={(value) => `$${parseFloat(Number(value).toFixed(2))}`}
+                          formatter={(value) =>
+                          growthType === "trend"
+                            ? `$${parseFloat(Number(value).toFixed(2))}`
+                            : `${Number(value).toFixed(2)}%`
+                        }
+
                         />
                         {/* Legend removed - will render separately below */}
                         {activeSelections.map((c, i) => {
@@ -888,4 +931,42 @@ function formatGrowthData(data, viewMode, metric) {
     });
     return obj;
   });
+}
+
+function formatYoYData(data, viewMode, metric) {
+  const grouped = {};
+  data.forEach(d => {
+    const key = viewMode === 'courses'
+      ? `${d.university} - ${d.course}`
+      : d.course;
+
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(d);
+  });
+
+  const result = [];
+  const years = [...new Set(data.map(d => d.year))].sort();
+
+  years.forEach(year => {
+    const row = { year };
+
+    Object.keys(grouped).forEach(key => {
+      const sorted = grouped[key].sort((a, b) => a.year - b.year);
+
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].year === year) {
+          const prev = sorted[i - 1][metric];
+          const curr = sorted[i][metric];
+
+          if (prev && curr) {
+            row[key] = ((curr - prev) / prev) * 100;
+          }
+        }
+      }
+    });
+
+    result.push(row);
+  });
+
+  return result;
 }
